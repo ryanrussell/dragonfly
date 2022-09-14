@@ -191,7 +191,7 @@ error_code RdbSnapshot::Close() {
 }
 
 void RdbSnapshot::StartInShard(EngineShard* shard) {
-  saver_.StartSnapshotInShard(shard);
+  saver_.StartSnapshotInShard(false, shard);
   started_ = true;
 }
 
@@ -866,6 +866,10 @@ void ServerFamily::DbSize(CmdArgList args, ConnectionContext* cntx) {
   return (*cntx)->SendLong(num_keys.load(memory_order_relaxed));
 }
 
+void ServerFamily::BreakOnShutdown() {
+  dfly_cmd_->BreakOnShutdown();
+}
+
 void ServerFamily::FlushDb(CmdArgList args, ConnectionContext* cntx) {
   DCHECK(cntx->transaction);
   DoFlush(cntx->transaction, cntx->transaction->db_index());
@@ -1392,7 +1396,7 @@ void ServerFamily::ReplConf(CmdArgList args, ConnectionContext* cntx) {
         (*cntx)->StartArray(3);
         (*cntx)->SendSimpleString(master_id_);
         (*cntx)->SendSimpleString(sync_id);
-        (*cntx)->SendLong(shard_set->size());
+        (*cntx)->SendLong(shard_set->pool()->size());
         return;
       }
     } else {

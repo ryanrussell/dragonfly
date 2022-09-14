@@ -87,7 +87,7 @@ struct ConnectionState {
   // If this server is master, and this connection is from a secondary replica,
   // then it holds positive sync session id.
   uint32_t repl_session_id = 0;
-  ShardId repl_shard_id = kInvalidSid;
+  uint32_t repl_threadid = kuint32max;
 
   ExecInfo exec_info;
   std::optional<ScriptInfo> script_info;

@@ -81,7 +81,8 @@ class RdbSaver {
   std::error_code SaveBody(RdbTypeFreqMap* freq_map);
 
   // Initiates the serialization in the shard's thread.
-  void StartSnapshotInShard(EngineShard* shard);
+  // TODO: to implement break functionality to allow stopping early.
+  void StartSnapshotInShard(bool include_journal_changes, EngineShard* shard);
 
  private:
   class Impl;
@@ -117,6 +118,7 @@ class RdbSerializer {
 
   // Must be called in the thread to which `it` belongs.
   // Returns the serialized rdb_type or the error.
+  // expire_ms = 0 means no expiry.
   io::Result<uint8_t> SaveEntry(const PrimeKey& pk, const PrimeValue& pv, uint64_t expire_ms);
   std::error_code WriteRaw(const ::io::Bytes& buf);
   std::error_code SaveString(std::string_view val);
