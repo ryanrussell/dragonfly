@@ -71,6 +71,8 @@ using util::http::StringResponse;
 
 namespace {
 
+const auto kRdbWriteFlags = O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC | O_DIRECT;
+
 using EngineFunc = void (ServerFamily::*)(CmdArgList args, ConnectionContext* cntx);
 
 inline CommandId::Handler HandlerFunc(ServerFamily* se, EngineFunc f) {
@@ -152,7 +154,7 @@ bool IsValidSaveScheduleNibble(string_view time, unsigned int max) {
 class RdbSnapshot {
  public:
   RdbSnapshot(bool single_shard, uring::LinuxFile* fl)
-      : file_(fl), linux_sink_(fl), saver_(&linux_sink_, single_shard) {
+      : file_(fl), linux_sink_(fl), saver_(&linux_sink_, single_shard, kRdbWriteFlags & O_DIRECT) {
   }
 
   error_code Start(const StringVec& lua_scripts);
@@ -279,19 +281,9 @@ ServerFamily::ServerFamily(Service* service) : service_(*service) {
   journal_.reset(new journal::Journal);
 
   {
-    // TODO: if we start using random generator in more places, we should probably
-    // refactor this code.
-
     absl::InsecureBitGen eng;
-    absl::uniform_int_distribution<uint32_t> ud;
-
-    absl::AlphaNum a1(absl::Hex(eng(), absl::kZeroPad16));
-    absl::AlphaNum a2(absl::Hex(eng(), absl::kZeroPad16));
-    absl::AlphaNum a3(absl::Hex(ud(eng), absl::kZeroPad8));
-    absl::StrAppend(&master_id_, a1, a2, a3);
-
-    size_t constexpr kConfigRunIdSize = CONFIG_RUN_ID_SIZE;
-    DCHECK_EQ(kConfigRunIdSize, master_id_.size());
+    master_id_ = GetRandomHex(eng, CONFIG_RUN_ID_SIZE);
+    DCHECK_EQ(CONFIG_RUN_ID_SIZE, master_id_.size());
   }
 }
 
@@ -701,7 +693,6 @@ error_code ServerFamily::DoSave(bool new_version, Transaction* trans, string* er
     service_.SwitchState(GlobalState::SAVING, GlobalState::ACTIVE);
   };
 
-  const auto kFlags = O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC | O_DIRECT;
   auto start = absl::Now();
   shared_ptr<LastSaveInfo> save_info;
   StringVec lua_scripts = script_mgr_->GetLuaScripts();
@@ -749,7 +740,7 @@ error_code ServerFamily::DoSave(bool new_version, Transaction* trans, string* er
       abs_path += shard_file;
 
       VLOG(1) << "Saving to " << abs_path;
-      auto res = uring::OpenLinux(abs_path.generic_string(), kFlags, 0666);
+      auto res = uring::OpenLinux(abs_path.generic_string(), kRdbWriteFlags, 0666);
 
       if (res) {
         snapshots[sid].reset(new RdbSnapshot{true, res.value().release()});
@@ -777,7 +768,7 @@ error_code ServerFamily::DoSave(bool new_version, Transaction* trans, string* er
     ExtendFilename(now, -1, &filename);
     path += filename;
 
-    auto res = uring::OpenLinux(path.generic_string(), kFlags, 0666);
+    auto res = uring::OpenLinux(path.generic_string(), kRdbWriteFlags, 0666);
     if (!res) {
       return res.error();
     }

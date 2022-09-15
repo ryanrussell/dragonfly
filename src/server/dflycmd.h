@@ -26,6 +26,7 @@ class DflyCmd {
   struct ReplicateFlow {
     facade::Connection* conn;
     ::boost::fibers::fiber repl_fb;
+    std::string eof_token;
   };
 
   struct SyncInfo {
@@ -57,7 +58,7 @@ class DflyCmd {
   facade::OpStatus FullSyncInShard(uint32_t syncid, Transaction* t, EngineShard* shard);
 
   // The fiber for full sync process.
-  void FullSyncFb(SyncInfo* si, facade::Connection* conn, RdbSaver* saver);
+  void FullSyncFb(std::string eof_token, SyncInfo* si, facade::Connection* conn, RdbSaver* saver);
 
   util::ListenerInterface* listener_;
   ServerFamily* sf_;

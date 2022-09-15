@@ -45,7 +45,9 @@ void SliceSnapshot::Start(bool include_journal_changes) {
   VLOG(1) << "DbSaver::Start - saving entries with version less than " << snapshot_version_;
 
   if (include_journal_changes) {
-    journal_cb_id_ = db_slice_->shard_owner()->journal()->RegisterOnChange(
+    auto* journal = db_slice_->shard_owner()->journal();
+    DCHECK(journal);
+    journal_cb_id_ = journal->RegisterOnChange(
         [this](const journal::Entry& e) { OnJournalEntry(e); });
   }
 
@@ -56,7 +58,8 @@ void SliceSnapshot::Start(bool include_journal_changes) {
   fb_ = fiber([this] {
     FiberFunc();
     db_slice_->UnregisterOnChange(snapshot_version_);
-    db_slice_->shard_owner()->journal()->Unregister(journal_cb_id_);
+    if (journal_cb_id_)
+      db_slice_->shard_owner()->journal()->Unregister(journal_cb_id_);
   });
 }
 
