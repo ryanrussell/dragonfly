@@ -8,7 +8,6 @@
 #include <absl/random/random.h>  // for master_id_ generation.
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
-
 #include <sys/resource.h>
 
 #include <chrono>
@@ -464,6 +463,11 @@ error_code ServerFamily::LoadRdb(const std::string& rdb_file) {
 
     RdbLoader loader(script_mgr());
     ec = loader.Load(&fs);
+    if (!ec) {
+      LOG(INFO) << "Done loading RDB, keys loaded: " << loader.keys_loaded();
+      LOG(INFO) << "Loading finished after "
+                << strings::HumanReadableElapsedTime(loader.load_time());
+    }
   } else {
     ec = res.error();
   }
@@ -548,8 +552,8 @@ void PrintPrometheusMetrics(const Metrics& m, StringResponse* resp) {
                             &resp->body());
   AppendMetricWithoutLabels("memory_used_peak_bytes", "", used_mem_peak.load(memory_order_relaxed),
                             MetricType::GAUGE, &resp->body());
-  AppendMetricWithoutLabels("comitted_memory", "", GetMallocCurrentCommitted(),
-                            MetricType::GAUGE, &resp->body());
+  AppendMetricWithoutLabels("comitted_memory", "", GetMallocCurrentCommitted(), MetricType::GAUGE,
+                            &resp->body());
   AppendMetricWithoutLabels("memory_max_bytes", "", max_memory_limit, MetricType::GAUGE,
                             &resp->body());
 

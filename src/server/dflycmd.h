@@ -57,6 +57,9 @@ class DflyCmd {
   // This function kicks off the replication asynchronously and exits.
   facade::OpStatus FullSyncInShard(uint32_t syncid, Transaction* t, EngineShard* shard);
 
+  // Some threads are not shards but we still need context from them.
+  void StartReplInThread(uint32_t thread_id, uint32_t syncid);
+
   // The fiber for full sync process.
   void FullSyncFb(std::string eof_token, SyncInfo* si, facade::Connection* conn, RdbSaver* saver);
 

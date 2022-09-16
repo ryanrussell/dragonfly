@@ -496,9 +496,11 @@ error_code Replica::InitiateDflySync() {
   boost::fibers::mutex mu;
   error_code ec;
 
+  absl::Time start = absl::Now();
+
   shard_set->pool()->AwaitFiberOnAll([&](unsigned index, auto*) {
     const auto& local_ids = partition[index];
-    for (auto id : local_ids) {
+    for (unsigned id : local_ids) {
       error_code local_ec = shard_flows_[id]->StartFlow();
       if (local_ec) {
         lock_guard lk(mu);
@@ -525,6 +527,14 @@ error_code Replica::InitiateDflySync() {
     LOG(ERROR) << "Sync failed " << ToSV(io_buf.InputBuffer());
     return make_error_code(errc::bad_message);
   }
+
+  for (unsigned i = 0; i < num_df_flows_; ++i) {
+    shard_flows_[i]->sync_fb_.join();
+  }
+
+  absl::Duration dur = absl::Now() - start;
+  uint64_t ms = absl::ToInt64Milliseconds(dur);
+  LOG(INFO) << "Full sync finished in " << ms << "ms";
 
   state_mask_ |= R_SYNC_OK;
 

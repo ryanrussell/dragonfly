@@ -149,6 +149,15 @@ void DflyCmd::Run(CmdArgList args, ConnectionContext* cntx) {
       return rb->SendError(kInvalidSyncId);
     }
 
+    // Before setting up a transaction that initiates a full sync,
+    // we kick-off non-shard replication that must start earlier than shards.
+    shard_set->pool()->AwaitFiberOnAll([&](unsigned index, auto*) {
+      auto* shard = EngineShard::tlocal();
+      if (!shard) {
+        StartReplInThread(index, syncid);
+      }
+    });
+
     cntx->transaction->Schedule();
 
     OpStatus status = OpStatus::OK;
@@ -296,6 +305,9 @@ OpStatus DflyCmd::FullSyncInShard(uint32_t syncid, Transaction* t, EngineShard* 
     return OpStatus::KEY_NOTFOUND;
   }
 
+
+  // I assume here that shard_id is thread id because we map threads 0..K to shards,
+  // threads are 0..K..N, where K<=N.
   auto shard_it = it->second->thread_map.find(shard->shard_id());
   if (shard_it == it->second->thread_map.end()) {
     return OpStatus::KEY_NOTFOUND;
@@ -321,6 +333,29 @@ OpStatus DflyCmd::FullSyncInShard(uint32_t syncid, Transaction* t, EngineShard* 
       &DflyCmd::FullSyncFb, this, shard_it->second.eof_token, it->second, conn, saver.release());
 
   return OpStatus::OK;
+}
+
+void DflyCmd::StartReplInThread(uint32_t thread_id, uint32_t syncid) {
+  // we can not check sync_info_ state in coordinator thread because by the time
+  // this function runs things can change.
+  unique_lock lk(mu_);
+  auto it = sync_info_.find(syncid);
+  if (it == sync_info_.end()) {
+    return;
+  }
+
+  auto shard_it = it->second->thread_map.find(thread_id);
+  if (shard_it == it->second->thread_map.end()) {
+    return;
+  }
+
+  CHECK(!shard_it->second.repl_fb.joinable());
+  Connection* conn = shard_it->second.conn;
+  lk.unlock();
+
+  // TODO: We do not support any replication yet.
+  error_code ec = conn->socket()->Shutdown(SHUT_RDWR);
+  (void)ec;
 }
 
 void DflyCmd::FullSyncFb(string eof_token, SyncInfo* si, Connection* conn, RdbSaver* saver) {
@@ -351,6 +386,8 @@ void DflyCmd::FullSyncFb(string eof_token, SyncInfo* si, Connection* conn, RdbSa
     return;
   }
 
+  // buggy code of course - when errors happen we won't decreases this counter,
+  // but it's only for poc.
   if (si->full_sync_cnt.fetch_sub(1, memory_order_acq_rel) == 1) {
     int64_t dur_ms = (ProactorBase::me()->GetMonotonicTimeNs() - si->start_time_ns) / 1000000;
     LOG(INFO) << "Finished full sync after " << dur_ms << "ms";
