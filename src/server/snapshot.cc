@@ -211,7 +211,6 @@ void SliceSnapshot::OnDbChange(DbIndex db_index, const DbSlice::ChangeReq& req) 
 }
 
 void SliceSnapshot::OnJournalEntry(const journal::Entry& entry) {
-  LOG(INFO) << "change entry " << entry.key;
   CHECK(journal::Op::VAL == entry.opcode);
 
   PrimeKey pkey{entry.key};

@@ -67,6 +67,7 @@ class PrimeEvictionPolicy {
         can_evict_(can_evict) {
   }
 
+  // A hook function that is called every time a segment is full and requires splitting.
   void RecordSplit(PrimeTable::Segment_t* segment) {
     mem_budget_ -= PrimeTable::kSegBytes;
     DVLOG(1) << "split: " << segment->SlowSize() << "/" << segment->capacity();
@@ -359,6 +360,7 @@ tuple<PrimeIterator, ExpireIterator, bool> DbSlice::AddOrFind2(DbIndex db_index,
   CompactObj co_key{key};
   PrimeIterator it;
   bool inserted;
+  DVLOG(2) << "Inserting key " << key;
 
   // I try/catch just for sake of having a convenient place to set a breakpoint.
   try {
@@ -366,6 +368,7 @@ tuple<PrimeIterator, ExpireIterator, bool> DbSlice::AddOrFind2(DbIndex db_index,
   } catch (bad_alloc& e) {
     throw e;
   }
+
 
   size_t evicted_obj_bytes = 0;
 

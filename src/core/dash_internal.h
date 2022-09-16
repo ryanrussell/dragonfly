@@ -19,6 +19,9 @@
 #include <emmintrin.h>
 #endif
 
+#include "base/logging.h"
+
+
 namespace dfly {
 namespace detail {
 
@@ -1182,8 +1185,6 @@ void Segment<Key, Value, Policy>::Split(HFunc&& hfn, Segment* dest_right) {
 
       auto it = dest_right->InsertUniq(std::forward<Key_t>(key),
                                        std::forward<Value_t>(Value(i, slot)), hash);
-      assert(it.index != kNanBid);
-
       (void)it;
       if constexpr (USE_VERSION) {
         // Maintaining consistent versioning.
@@ -1222,7 +1223,8 @@ void Segment<Key, Value, Policy>::Split(HFunc&& hfn, Segment* dest_right) {
       auto it = dest_right->InsertUniq(std::forward<Key_t>(Key(bid, slot)),
                                        std::forward<Value_t>(Value(bid, slot)), hash);
       (void)it;
-      assert(it.index != kNanBid);
+      DCHECK(it.index != kNanBid);
+
       if constexpr (USE_VERSION) {
         // Update the version in the destination bucket.
         uint64_t ver = stash.GetVersion();
