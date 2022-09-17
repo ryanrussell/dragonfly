@@ -359,7 +359,7 @@ error_code Replica::Greet() {
       return make_error_code(errc::bad_message);
     }
   } else if (resp_args_.size() == 3) {  // it's dragonfly master.
-    // Reponse is: <master_repl_id, syncid, num_threads>
+    // Reponse is: <master_repl_id, sync_id, num_threads>
 
     if (resp_args_[0].type != RespExpr::STRING || resp_args_[1].type != RespExpr::STRING ||
         resp_args_[2].type != RespExpr::INT64 ||

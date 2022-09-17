@@ -30,8 +30,8 @@ using util::ProactorBase;
 
 namespace {
 
-const char kIdNotFound[] = "syncid not found";
-const char kInvalidSyncId[] = "bad sync id";
+const char kIdNotFound[] = "sync_id not found";
+const char kInvalidSyncId[] = "bad sync_id";
 
 bool ToSyncId(string_view str, uint32_t* num) {
   if (!absl::StartsWith(str, "SYNC"))
@@ -91,18 +91,18 @@ void DflyCmd::Run(CmdArgList args, ConnectionContext* cntx) {
   }
 
   if (sub_cmd == "FLOW" && args.size() == 5) {
-    // FLOW <masterid> <syncid> <thread_id>
+    // FLOW <master_id> <sync_id> <thread_id>
     // handshaking when a flow connection wants to connect in order to receive
     // thread-local data.
 
-    string_view masterid = ArgS(args, 2);
-    string_view syncid_str = ArgS(args, 3);
+    string_view master_id = ArgS(args, 2);
+    string_view sync_id_str = ArgS(args, 3);
     string_view thread_id_str = ArgS(args, 4);
 
     unsigned thread_id, sync_id;
-    VLOG(1) << "Got DFLY FLOW " << masterid << " " << syncid_str << " " << thread_id_str;
+    VLOG(1) << "Got DFLY FLOW " << master_id << " " << sync_id_str << " " << thread_id_str;
 
-    if (masterid != sf_->master_id()) {
+    if (master_id != sf_->master_id()) {
       return rb->SendError("Bad master id");
     }
 
@@ -110,7 +110,7 @@ void DflyCmd::Run(CmdArgList args, ConnectionContext* cntx) {
       return rb->SendError(facade::kInvalidIntErr);
     }
 
-    if (!ToSyncId(syncid_str, &sync_id)) {
+    if (!ToSyncId(sync_id_str, &sync_id)) {
       return rb->SendError(kInvalidSyncId);
     }
 
@@ -142,10 +142,10 @@ void DflyCmd::Run(CmdArgList args, ConnectionContext* cntx) {
   }
 
   if (sub_cmd == "SYNC" && args.size() == 3) {
-    string_view syncid_str = ArgS(args, 2);
-    uint32_t syncid;
+    string_view sync_id_str = ArgS(args, 2);
+    uint32_t sync_id;
 
-    if (!ToSyncId(syncid_str, &syncid)) {
+    if (!ToSyncId(sync_id_str, &sync_id)) {
       return rb->SendError(kInvalidSyncId);
     }
 
@@ -154,7 +154,7 @@ void DflyCmd::Run(CmdArgList args, ConnectionContext* cntx) {
     shard_set->pool()->AwaitFiberOnAll([&](unsigned index, auto*) {
       auto* shard = EngineShard::tlocal();
       if (!shard) {
-        StartReplInThread(index, syncid);
+        StartReplInThread(index, sync_id);
       }
     });
 
@@ -168,7 +168,7 @@ void DflyCmd::Run(CmdArgList args, ConnectionContext* cntx) {
     // via control socket that orchestrates the flow from the replica side.
     cntx->transaction->Execute(
         [&](Transaction* t, EngineShard* shard) {
-          OpStatus st = FullSyncInShard(syncid, t, shard);
+          OpStatus st = FullSyncInShard(sync_id, t, shard);
 
           lock_guard lk(mu);
           status = st;
@@ -296,11 +296,11 @@ void DflyCmd::HandleJournal(CmdArgList args, ConnectionContext* cntx) {
   return rb->SendError(reply, kSyntaxErrType);
 }
 
-OpStatus DflyCmd::FullSyncInShard(uint32_t syncid, Transaction* t, EngineShard* shard) {
+OpStatus DflyCmd::FullSyncInShard(uint32_t sync_id, Transaction* t, EngineShard* shard) {
   // we can not check sync_info_ state in coordinator thread because by the time
   // this function runs things can change.
   unique_lock lk(mu_);
-  auto it = sync_info_.find(syncid);
+  auto it = sync_info_.find(sync_id);
   if (it == sync_info_.end()) {
     return OpStatus::KEY_NOTFOUND;
   }
@@ -335,11 +335,11 @@ OpStatus DflyCmd::FullSyncInShard(uint32_t syncid, Transaction* t, EngineShard* 
   return OpStatus::OK;
 }
 
-void DflyCmd::StartReplInThread(uint32_t thread_id, uint32_t syncid) {
+void DflyCmd::StartReplInThread(uint32_t thread_id, uint32_t sync_id) {
   // we can not check sync_info_ state in coordinator thread because by the time
   // this function runs things can change.
   unique_lock lk(mu_);
-  auto it = sync_info_.find(syncid);
+  auto it = sync_info_.find(sync_id);
   if (it == sync_info_.end()) {
     return;
   }

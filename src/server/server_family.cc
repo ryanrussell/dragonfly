@@ -1387,7 +1387,7 @@ void ServerFamily::ReplConf(CmdArgList args, ConnectionContext* cntx) {
         string sync_id = absl::StrCat("SYNC", sid);
         cntx->conn_state.repl_session_id = sid;
 
-        // The response for 'capa dragonfly' is: <masterid> <syncid> <numthreads>
+        // The response for 'capa dragonfly' is: <master_id> <sync_id> <numthreads>
         (*cntx)->StartArray(3);
         (*cntx)->SendSimpleString(master_id_);
         (*cntx)->SendSimpleString(sync_id);
