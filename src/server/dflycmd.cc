@@ -129,7 +129,7 @@ void DflyCmd::Run(CmdArgList args, ConnectionContext* cntx) {
     cntx->owner()->SetName(absl::StrCat("repl_flow_", sync_id));
 
     cntx->conn_state.repl_session_id = sync_id;
-    cntx->conn_state.repl_threadid = threadid;
+    cntx->conn_state.repl_thread_id = threadid;
 
     // assuming here that shard id and thread id is the same thing.
     listener_->Migrate(cntx->owner(), pool->at(threadid));
@@ -205,14 +205,14 @@ uint32_t DflyCmd::AllocateSyncSession() {
 void DflyCmd::OnClose(ConnectionContext* cntx) {
   boost::fibers::fiber repl_fb;
 
-  if (cntx->conn_state.repl_session_id > 0 && cntx->conn_state.repl_threadid != kuint32max) {
+  if (cntx->conn_state.repl_session_id > 0 && cntx->conn_state.repl_thread_id != kuint32max) {
     unique_lock lk(mu_);
 
     auto it = sync_info_.find(cntx->conn_state.repl_session_id);
     if (it != sync_info_.end()) {
       SyncInfo* si = it->second;
       auto& thread_map = si->thread_map;
-      auto shard_it = thread_map.find(cntx->conn_state.repl_threadid);
+      auto shard_it = thread_map.find(cntx->conn_state.repl_thread_id);
       if (shard_it != thread_map.end() && shard_it->second.conn == cntx->owner()) {
         repl_fb.swap(shard_it->second.repl_fb);
         thread_map.erase(shard_it);
