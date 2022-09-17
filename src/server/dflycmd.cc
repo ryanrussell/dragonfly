@@ -91,22 +91,22 @@ void DflyCmd::Run(CmdArgList args, ConnectionContext* cntx) {
   }
 
   if (sub_cmd == "FLOW" && args.size() == 5) {
-    // FLOW <masterid> <syncid> <threadid>
+    // FLOW <masterid> <syncid> <thread_id>
     // handshaking when a flow connection wants to connect in order to receive
     // thread-local data.
 
     string_view masterid = ArgS(args, 2);
     string_view syncid_str = ArgS(args, 3);
-    string_view threadid_str = ArgS(args, 4);
+    string_view thread_id_str = ArgS(args, 4);
 
-    unsigned threadid, sync_id;
-    VLOG(1) << "Got DFLY FLOW " << masterid << " " << syncid_str << " " << threadid_str;
+    unsigned thread_id, sync_id;
+    VLOG(1) << "Got DFLY FLOW " << masterid << " " << syncid_str << " " << thread_id_str;
 
     if (masterid != sf_->master_id()) {
       return rb->SendError("Bad master id");
     }
 
-    if (!absl::SimpleAtoi(threadid_str, &threadid) || threadid >= shard_set->pool()->size()) {
+    if (!absl::SimpleAtoi(thread_id_str, &thread_id) || thread_id >= shard_set->pool()->size()) {
       return rb->SendError(facade::kInvalidIntErr);
     }
 
@@ -122,17 +122,17 @@ void DflyCmd::Run(CmdArgList args, ConnectionContext* cntx) {
       if (it == sync_info_.end()) {
         return rb->SendError(kIdNotFound);
       }
-      auto& entry = it->second->thread_map[threadid];
+      auto& entry = it->second->thread_map[thread_id];
       entry.conn = cntx->owner();
       entry.eof_token = eof_token;
     }
     cntx->owner()->SetName(absl::StrCat("repl_flow_", sync_id));
 
     cntx->conn_state.repl_session_id = sync_id;
-    cntx->conn_state.repl_thread_id = threadid;
+    cntx->conn_state.repl_thread_id = thread_id;
 
     // assuming here that shard id and thread id is the same thing.
-    listener_->Migrate(cntx->owner(), pool->at(threadid));
+    listener_->Migrate(cntx->owner(), pool->at(thread_id));
 
     // response is an array
     rb->StartArray(2);
